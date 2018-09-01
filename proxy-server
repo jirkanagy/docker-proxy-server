@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+
+# Exit script on first error
+set -e
+
+########################################################################################################################
+### !!!! HEADER DO NOT EDIT
+########################################################################################################################
+
+### GET CURRENT DIR CURRENT DIR
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
+  TARGET="$(readlink "$SOURCE")"
+  if [[ $TARGET == /* ]]; then
+    SOURCE="$TARGET"
+  else
+    DIR="$( dirname "$SOURCE" )"
+    SOURCE="$DIR/$TARGET" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+  fi
+done
+DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+
+### READ VARIABLES
+source ./env.bash
+source ./env.custom.bash
+
+########################################################################################################################
+### !!!! HEADER DO NOT EDIT
+########################################################################################################################
+
+### READ COMMAND
+CMD=$1
+
+#create absolute path to the volume directory
+export VOLUME_DIRECTORY=${DIR}/${VOLUME_DIRECTORY}
+
+### HELPER FOR NAMED DOCKER-COMPOSE COMMAND
+function dc () {
+	if [[ ${ENV} == 'prod' ]];then
+		docker-compose -f ./src/docker-compose.yml -f ./src/docker-compose.prod.yml -p ${PROJECT_NAME} $*
+	else
+		docker-compose -f ./src/docker-compose.yml -p ${PROJECT_NAME} $*
+	fi
+}
+
+function printCmd () {
+	echo ""
+	echo "CMD: $1"
+	echo "----------------"
+}
+
+function start() {
+
+#dc restart;
+#exit;
+	## create network if not exist
+	echo " - checking network"
+	if [ $(docker network ls|grep ${NETWORK_NAME} -c ) -ge 1 ]; then
+		echo " -- network already exists"
+    else
+        echo " -- creating network"
+        docker network create ${NETWORK_NAME}
+    fi
+
+	echo " - starting services"
+	dc up --force -d
+#	dc restart
+}
+
+function stop() {
+	dc stop
+}
+
+function clean() {
+	echo " - removing services"
+	dc down
+	#remove network if exists
+	if [ $(docker network ls|grep ${NETWORK_NAME} -c ) -ge 1 ]; then
+		echo " - removing proxy-server network"
+		docker network rm ${NETWORK_NAME}
+    fi
+}
+
+function showLog() {
+
+	#validate param
+	if [[ $1 == "" ]];then
+		echo "ERROR: Service name must be specified"
+		echo ""
+		exit;
+	fi
+
+	dc logs -f $1
+}
+
+function goInside() {
+	#validate param
+	if [[ $1 == "" ]];then
+		echo "ERROR: Service name must be specified"
+		echo ""
+		exit;
+	fi
+
+	dc exec $1 sh
+}
+
+if [ "${CMD}" == "start" ]; then    printCmd ${CMD};    start;            echo "";   exit 0; fi
+if [ "${CMD}" == "stop"  ]; then    printCmd ${CMD};    stop;             echo "";   exit 0; fi
+if [ "${CMD}" == "clean" ]; then    printCmd ${CMD};    clean;            echo "";   exit 0; fi
+if [ "${CMD}" == "log"   ]; then    printCmd ${CMD};    showLog $2;       echo "";   exit 0; fi
+if [ "${CMD}" == "go"    ]; then    printCmd ${CMD};    goInside $2;      echo "";   exit 0; fi
+
+echo ""
+echo "   PROXY SERVER"
+echo "   ============"
+echo "   More info about usage:"
+echo "    - Nginx-proxy: https://github.com/jwilder/nginx-proxy"
+echo "    - Let's Encrypt https://github.com/JrCs/docker-letsencrypt-nginx-proxy-companion"
+echo ""
+echo "   Usage: bash flow.bash [command]"
+echo "   -------------------------------"
+echo "   Services:"
+printf "    - %s\n" $(dc config --services)
+echo "   -------------------------------"
+echo "   Commands:"
+echo "    - start               # start proxy-server"
+echo "    - stop                # stop proxy-server"
+echo "    - clean               # clean all"
+echo "    - log [serviceName]   # start live log"
+echo "    - go [serviceName]    # start interactive shell in selected service"
+echo ""
