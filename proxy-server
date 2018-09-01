@@ -21,8 +21,8 @@ done
 DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 
 ### READ VARIABLES
-source ./env.bash
-source ./env.custom.bash
+source ${DIR}/env.bash
+source ${DIR}/env.custom.bash
 
 ########################################################################################################################
 ### !!!! HEADER DO NOT EDIT
