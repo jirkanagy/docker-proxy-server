@@ -319,6 +319,8 @@ server {
 	include /etc/nginx/vhost.d/default;
 	{{ end }}
 
+	#By default disable nginx limit
+	client_max_body_size 0;	
 	location / {
 		{{ if eq $proto "uwsgi" }}
 		include uwsgi_params;
